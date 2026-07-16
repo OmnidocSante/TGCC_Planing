@@ -7,14 +7,18 @@ async function main() {
   console.log('🌱 Seeding database...');
 
   // Create admin user
-  const adminPassword = await bcrypt.hash('admin123', 12);
+  const adminPassword = await bcrypt.hash('Omnidoc@2026', 12);
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@tgcc.ma' },
-    update: {},
-    create: {
-      email: 'admin@tgcc.ma',
+    where: { email: 'support@omnidoc.ma' },
+    update: {
       password: adminPassword,
-      name: 'Administrateur',
+      name: 'Support OmnidocSanté',
+      role: 'ADMIN'
+    },
+    create: {
+      email: 'support@omnidoc.ma',
+      password: adminPassword,
+      name: 'Support OmnidocSanté',
       role: 'ADMIN'
     }
   });

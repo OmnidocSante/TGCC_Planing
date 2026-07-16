@@ -101,9 +101,8 @@ npm run dev
 - **Frontend** : http://localhost:3000
 - **Backend API** : http://localhost:8500
 
-### Compte admin par défaut
-- Email : `admin@tgcc.ma`
-- Mot de passe : `admin123`
+### Compte admin
+Contactez l'administrateur pour obtenir vos identifiants de connexion.
 
 ## Structure du Projet
 

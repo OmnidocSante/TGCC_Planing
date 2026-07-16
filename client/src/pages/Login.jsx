@@ -92,11 +92,9 @@ export default function Login() {
             </button>
           </form>
 
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-600 text-center">
-              <strong>Compte admin par défaut:</strong><br />
-              Email: admin@tgcc.ma<br />
-              Mot de passe: admin123
+          <div className="mt-6 text-center">
+            <p className="text-xs text-gray-400">
+              © 2026 OmnidocSanté - TGCC
             </p>
           </div>
         </div>
