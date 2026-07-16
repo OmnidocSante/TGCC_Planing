@@ -1,9 +1,7 @@
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../lib/prisma');
 const XLSX = require('xlsx');
 const fs = require('fs');
 const path = require('path');
-
-const prisma = new PrismaClient();
 
 const parseDate = (value) => {
   if (!value) return null;
