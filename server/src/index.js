@@ -20,6 +20,9 @@ const kpiRoutes = require('./routes/kpi.routes');
 
 const app = express();
 
+// Trust proxy (required when behind Nginx/reverse proxy)
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet({
   contentSecurityPolicy: false,
@@ -40,14 +43,16 @@ const authLimiter = rateLimit({
   max: 10, // 10 attempts per window
   message: { success: false, message: 'Trop de tentatives, réessayez dans 15 minutes' },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false }
 });
 
 // General rate limiter
 const generalLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
   max: 100, // 100 requests per minute
-  message: { success: false, message: 'Trop de requêtes, réessayez plus tard' }
+  message: { success: false, message: 'Trop de requêtes, réessayez plus tard' },
+  validate: { xForwardedForHeader: false }
 });
 
 // Apply rate limiters
@@ -57,14 +62,18 @@ app.use('/api', generalLimiter);
 
 // CORS configuration
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
-  ? process.env.ALLOWED_ORIGINS.split(',') 
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
   : ['http://localhost:3000', 'http://localhost:5173'];
 
 app.use(cors({
   origin: function(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
+      console.log('CORS blocked origin:', origin, 'Allowed:', allowedOrigins);
       callback(new Error('Not allowed by CORS'));
     }
   },
