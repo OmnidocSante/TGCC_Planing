@@ -37,27 +37,15 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-// Rate limiting for auth routes
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // 10 attempts per window
-  message: { success: false, message: 'Trop de tentatives, réessayez dans 15 minutes' },
-  standardHeaders: true,
-  legacyHeaders: false,
-  validate: { xForwardedForHeader: false }
-});
-
-// General rate limiter
+// General rate limiter (no limit on auth for troubleshooting)
 const generalLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
-  max: 100, // 100 requests per minute
+  max: 200, // 200 requests per minute
   message: { success: false, message: 'Trop de requêtes, réessayez plus tard' },
   validate: { xForwardedForHeader: false }
 });
 
-// Apply rate limiters
-app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/register', authLimiter);
+// Apply rate limiter (not on auth routes for now)
 app.use('/api', generalLimiter);
 
 // CORS configuration

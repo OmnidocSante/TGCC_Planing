@@ -59,27 +59,45 @@ exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
+    console.log('[LOGIN] Tentative de connexion pour:', email);
+
+    if (!email || !password) {
+      console.log('[LOGIN] Email ou mot de passe manquant');
+      return res.status(400).json({
+        success: false,
+        message: 'Email et mot de passe requis',
+        debug: { email: !!email, password: !!password }
+      });
+    }
+
     const user = await prisma.user.findUnique({
       where: { email }
     });
 
     if (!user) {
+      console.log('[LOGIN] Utilisateur non trouvé:', email);
       return res.status(401).json({
         success: false,
-        message: 'Email ou mot de passe incorrect'
+        message: 'Utilisateur non trouvé avec cet email',
+        debug: { emailSearched: email }
       });
     }
+
+    console.log('[LOGIN] Utilisateur trouvé:', user.email, 'Role:', user.role);
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
+      console.log('[LOGIN] Mot de passe incorrect pour:', email);
       return res.status(401).json({
         success: false,
-        message: 'Email ou mot de passe incorrect'
+        message: 'Mot de passe incorrect'
       });
     }
 
     const token = generateToken(user.id);
+
+    console.log('[LOGIN] Connexion réussie pour:', email);
 
     res.json({
       success: true,
@@ -95,7 +113,12 @@ exports.login = async (req, res, next) => {
       }
     });
   } catch (error) {
-    next(error);
+    console.error('[LOGIN] Erreur:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur lors de la connexion',
+      debug: { error: error.message }
+    });
   }
 };
 
