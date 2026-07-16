@@ -1,0 +1,167 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+model Medecin {
+  id              Int      @id @default(autoincrement())
+  nom             String
+  prenom          String?
+  villes          String   @db.Text // JSON array of cities
+  telephone       String?
+  email           String?
+  actif           Boolean  @default(true)
+  
+  // Tarification
+  typeTarif       TypeTarif @default(PAR_VISITE) @map("type_tarif")
+  tarifVisite     Float?    @map("tarif_visite")     // Tarif par visite au chantier
+  tarifExamen     Float?    @map("tarif_examen")     // Tarif par collaborateur examiné
+  devise          String    @default("MAD")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  visites    Visite[]
+  honoraires Honoraire[]
+
+  @@map("medecins")
+}
+
+enum TypeTarif {
+  PAR_VISITE      // Payé par visite au chantier (forfait)
+  PAR_EXAMEN      // Payé par collaborateur examiné
+  MIXTE           // Les deux (forfait + variable)
+}
+
+model Honoraire {
+  id            Int       @id @default(autoincrement())
+  medecinId     Int       @map("medecin_id")
+  planningId    Int?      @map("planning_id")
+  chantier      String?
+  ville         String?
+  dateVisite    DateTime  @map("date_visite")
+  
+  // Détails facturation
+  nbExamens     Int       @default(0) @map("nb_examens")
+  tarifApplique Float     @map("tarif_applique")
+  montantTotal  Float     @map("montant_total")
+  typeTarif     TypeTarif @map("type_tarif")
+  
+  // Statut paiement
+  statut        StatutHonoraire @default(EN_ATTENTE)
+  datePaiement  DateTime?       @map("date_paiement")
+  reference     String?         // Référence de paiement
+  notes         String?         @db.Text
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  medecin       Medecin   @relation(fields: [medecinId], references: [id], onDelete: Cascade)
+
+  @@index([medecinId])
+  @@index([statut])
+  @@map("honoraires")
+}
+
+enum StatutHonoraire {
+  EN_ATTENTE
+  VALIDE
+  PAYE
+  ANNULE
+}
+
+model Salarie {
+  id           Int      @id @default(autoincrement())
+  matricule    String   @unique
+  nom          String?
+  prenom       String?
+  fonction     String?
+  typeFonction String?  @map("type_fonction")
+  chantier     String?
+  ville        String?
+  actif        Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  visites Visite[]
+
+  @@index([matricule])
+  @@map("salaries")
+}
+
+model Visite {
+  id                  Int       @id @default(autoincrement())
+  salarieId           Int       @map("salarie_id")
+  medecinId           Int?      @map("medecin_id")
+  medecinNom          String?   @map("medecin_nom") // Nom original du médecin (import)
+  dateVisite          DateTime  @map("date_visite")
+  dateVisiteProchaine DateTime? @map("date_visite_prochaine")
+  chantier            String?
+  ville               String?
+  statut              StatutVisite @default(PLANIFIEE)
+  notes               String?   @db.Text
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  salarie Salarie  @relation(fields: [salarieId], references: [id], onDelete: Cascade)
+  medecin Medecin? @relation(fields: [medecinId], references: [id], onDelete: SetNull)
+
+  @@index([salarieId])
+  @@index([medecinId])
+  @@index([dateVisite])
+  @@map("visites")
+}
+
+enum StatutVisite {
+  PLANIFIEE
+  EFFECTUEE
+  ANNULEE
+  REPORTEE
+}
+
+model ImportHistory {
+  id           Int      @id @default(autoincrement())
+  fileName     String   @map("file_name")
+  fileType     String   @map("file_type") // HISTORIQUE, CLIENT
+  recordsCount Int      @map("records_count")
+  status       String   // SUCCESS, ERROR, PARTIAL
+  errors       String?  @db.Text
+  createdAt    DateTime @default(now())
+
+  @@map("import_history")
+}
+
+model Planning {
+  id           Int      @id @default(autoincrement())
+  nom          String
+  dateDebut    DateTime @map("date_debut")
+  dateFin      DateTime @map("date_fin")
+  totalVisites Int      @map("total_visites")
+  status       String   @default("BROUILLON") // BROUILLON, VALIDE, EXPORTE
+  data         String   @db.LongText // JSON data of planned visits
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("plannings")
+}
