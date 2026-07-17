@@ -13,7 +13,10 @@ import {
   FileSpreadsheet,
   Loader2,
   Clock,
-  TrendingUp
+  TrendingUp,
+  Download,
+  XCircle,
+  AlertTriangle
 } from 'lucide-react'
 
 export default function Import() {
@@ -22,8 +25,27 @@ export default function Import() {
   const [progress, setProgress] = useState(0)
   const [progressText, setProgressText] = useState('')
   const [result, setResult] = useState(null)
+  const [importError, setImportError] = useState(null)
   const fileInputRef = useRef(null)
   const navigate = useNavigate()
+
+  const downloadTemplate = async (type) => {
+    try {
+      const response = await api.get(`/import/template/${type}`, {
+        responseType: 'blob'
+      })
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `template_${type === 'historique' ? 'historique_visites' : 'fichier_client'}.xlsx`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      toast.success('Template téléchargé')
+    } catch (error) {
+      toast.error('Erreur lors du téléchargement du template')
+    }
+  }
 
   // Simuler la progression pendant l'upload
   useEffect(() => {
@@ -61,11 +83,36 @@ export default function Import() {
     const file = e.target.files[0]
     if (!file) return
 
+    // Validation du fichier
+    const validExtensions = ['.xlsx', '.xls']
+    const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'))
+    
+    if (!validExtensions.includes(fileExtension)) {
+      setImportError({
+        title: 'Format de fichier invalide',
+        message: `Le fichier "${file.name}" n'est pas un fichier Excel valide.`,
+        details: ['Formats acceptés: .xlsx, .xls', 'Veuillez télécharger le template si nécessaire.']
+      })
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+
+    if (file.size > 50 * 1024 * 1024) {
+      setImportError({
+        title: 'Fichier trop volumineux',
+        message: `Le fichier "${file.name}" dépasse la taille maximale autorisée.`,
+        details: ['Taille maximale: 50 MB', `Taille du fichier: ${(file.size / 1024 / 1024).toFixed(2)} MB`]
+      })
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+
     const formData = new FormData()
     formData.append('file', file)
 
     setUploading(true)
     setResult(null)
+    setImportError(null)
     setProgress(0)
 
     try {
@@ -83,7 +130,22 @@ export default function Import() {
       setResult(response.data)
       toast.success(response.data.message)
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Erreur lors de l\'import')
+      const errorResponse = error.response?.data
+      
+      let errorDetails = []
+      if (errorResponse?.errors) {
+        errorDetails = errorResponse.errors.map(e => e.message || e)
+      }
+      
+      setImportError({
+        title: 'Erreur lors de l\'import',
+        message: errorResponse?.message || 'Une erreur est survenue lors de l\'importation du fichier.',
+        details: errorDetails.length > 0 ? errorDetails : [
+          'Vérifiez que le fichier contient les colonnes requises.',
+          'Assurez-vous que le format des données est correct.',
+          'Téléchargez le template pour voir un exemple du format attendu.'
+        ]
+      })
     } finally {
       setTimeout(() => {
         setUploading(false)
@@ -112,7 +174,7 @@ export default function Import() {
       {/* Tabs */}
       <div className="flex space-x-4 border-b border-gray-200">
         <button
-          onClick={() => { setActiveTab('historique'); setResult(null) }}
+          onClick={() => { setActiveTab('historique'); setResult(null); setImportError(null) }}
           className={`pb-3 px-1 border-b-2 font-medium transition-colors ${
             activeTab === 'historique'
               ? 'border-primary-600 text-primary-600'
@@ -125,7 +187,7 @@ export default function Import() {
           </div>
         </button>
         <button
-          onClick={() => { setActiveTab('client'); setResult(null) }}
+          onClick={() => { setActiveTab('client'); setResult(null); setImportError(null) }}
           className={`pb-3 px-1 border-b-2 font-medium transition-colors ${
             activeTab === 'client'
               ? 'border-primary-600 text-primary-600'
@@ -148,10 +210,26 @@ export default function Import() {
               <h3 className="text-lg font-medium text-gray-900 mb-2">
                 Import de l'historique des visites
               </h3>
-              <p className="text-gray-500 mb-6 max-w-md mx-auto">
+              <p className="text-gray-500 mb-4 max-w-md mx-auto">
                 Importez votre fichier Excel contenant l'historique des visites médicales.
-                Les colonnes attendues: Médecin, Date visite, Matricule, Chantier
               </p>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 max-w-lg mx-auto">
+                <h4 className="font-medium text-blue-800 mb-2">Colonnes attendues:</h4>
+                <ul className="text-sm text-blue-700 text-left list-disc list-inside space-y-1">
+                  <li><strong>Matricule</strong> - Numéro matricule du salarié (obligatoire)</li>
+                  <li><strong>Médecin</strong> - Nom du médecin</li>
+                  <li><strong>Date Visite</strong> - Date de la visite (JJ/MM/AAAA ou JJ-mois)</li>
+                  <li><strong>Chantier</strong> - Nom du chantier</li>
+                  <li><strong>Ville</strong> - Ville du chantier</li>
+                </ul>
+              </div>
+              <button
+                onClick={() => downloadTemplate('historique')}
+                className="btn-secondary flex items-center space-x-2 mx-auto mb-6"
+              >
+                <Download className="w-5 h-5" />
+                <span>Télécharger le template avec exemple</span>
+              </button>
             </>
           ) : (
             <>
@@ -159,10 +237,28 @@ export default function Import() {
               <h3 className="text-lg font-medium text-gray-900 mb-2">
                 Import du fichier client
               </h3>
-              <p className="text-gray-500 mb-6 max-w-md mx-auto">
-                Importez la liste des salariés communiquée par le client pour vérifier
-                ceux qui ont besoin d'une visite médicale (règle des 12 mois).
+              <p className="text-gray-500 mb-4 max-w-md mx-auto">
+                Importez la liste des salariés pour vérifier ceux qui ont besoin d'une visite médicale.
               </p>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 max-w-lg mx-auto">
+                <h4 className="font-medium text-green-800 mb-2">Colonnes attendues:</h4>
+                <ul className="text-sm text-green-700 text-left list-disc list-inside space-y-1">
+                  <li><strong>Matricule</strong> - Numéro matricule du salarié (obligatoire)</li>
+                  <li><strong>Fonction</strong> - Fonction/Poste du salarié</li>
+                  <li><strong>Type Fonction</strong> - Catégorie de fonction</li>
+                  <li><strong>Chantier</strong> - Chantier actuel</li>
+                </ul>
+                <p className="text-xs text-green-600 mt-3 italic">
+                  Le système compare la date de dernière visite avec la règle des 12 mois.
+                </p>
+              </div>
+              <button
+                onClick={() => downloadTemplate('client')}
+                className="btn-secondary flex items-center space-x-2 mx-auto mb-6"
+              >
+                <Download className="w-5 h-5" />
+                <span>Télécharger le template avec exemple</span>
+              </button>
             </>
           )}
 
@@ -211,6 +307,46 @@ export default function Import() {
           </p>
         </div>
       </div>
+
+      {/* Import Error */}
+      {importError && (
+        <div className="card bg-red-50 border-red-300">
+          <div className="flex items-start space-x-4">
+            <div className="p-2 bg-red-100 rounded-full">
+              <XCircle className="w-6 h-6 text-red-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-red-900 text-lg">{importError.title}</h3>
+              <p className="text-red-700 mt-1">{importError.message}</p>
+              {importError.details && importError.details.length > 0 && (
+                <div className="mt-3 bg-red-100 rounded-lg p-3">
+                  <p className="text-sm font-medium text-red-800 mb-2">Détails:</p>
+                  <ul className="text-sm text-red-700 list-disc list-inside space-y-1">
+                    {importError.details.map((detail, index) => (
+                      <li key={index}>{detail}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <div className="mt-4 flex space-x-3">
+                <button
+                  onClick={() => setImportError(null)}
+                  className="btn-secondary text-sm"
+                >
+                  Fermer
+                </button>
+                <button
+                  onClick={() => downloadTemplate(activeTab)}
+                  className="btn-primary text-sm flex items-center space-x-2"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Télécharger le template</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Results */}
       {result && (

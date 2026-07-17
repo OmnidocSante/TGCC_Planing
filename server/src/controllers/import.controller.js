@@ -388,3 +388,153 @@ exports.getImportHistory = async (req, res, next) => {
     next(error);
   }
 };
+
+// Télécharger le template pour l'import historique
+exports.downloadTemplateHistorique = async (req, res, next) => {
+  try {
+    const workbook = XLSX.utils.book_new();
+    
+    // Données d'exemple
+    const exampleData = [
+      {
+        'Médecin': 'Dr. LATIF Mohamed',
+        'Matricule': '1108702',
+        'Date Visite': '15/06/2026',
+        'Chantier': 'CASA - PROJET MARINA',
+        'Ville': 'CASABLANCA'
+      },
+      {
+        'Médecin': 'Dr. BENNANI Fatima',
+        'Matricule': '1205843',
+        'Date Visite': '20-juin',
+        'Chantier': 'RABAT - TOUR ATLAS',
+        'Ville': 'RABAT'
+      },
+      {
+        'Médecin': 'Dr. ALAOUI Hassan',
+        'Matricule': '1302156',
+        'Date Visite': '12/05/2026',
+        'Chantier': 'TANGER - PORT MED',
+        'Ville': 'TANGER'
+      }
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(exampleData);
+    
+    // Ajuster les largeurs de colonnes
+    worksheet['!cols'] = [
+      { wch: 25 }, // Médecin
+      { wch: 15 }, // Matricule
+      { wch: 15 }, // Date Visite
+      { wch: 30 }, // Chantier
+      { wch: 15 }  // Ville
+    ];
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Historique Visites');
+
+    // Ajouter une feuille d'instructions
+    const instructions = [
+      { 'Instructions': 'TEMPLATE IMPORT HISTORIQUE DES VISITES' },
+      { 'Instructions': '' },
+      { 'Instructions': 'Colonnes requises:' },
+      { 'Instructions': '- Médecin: Nom du médecin (ex: Dr. LATIF Mohamed)' },
+      { 'Instructions': '- Matricule: Numéro matricule du salarié (obligatoire)' },
+      { 'Instructions': '- Date Visite: Date de la visite (formats acceptés: JJ/MM/AAAA, JJ-mois, JJ/MM/AA)' },
+      { 'Instructions': '- Chantier: Nom du chantier' },
+      { 'Instructions': '- Ville: Ville du chantier' },
+      { 'Instructions': '' },
+      { 'Instructions': 'Notes importantes:' },
+      { 'Instructions': '- Le matricule est obligatoire pour chaque ligne' },
+      { 'Instructions': '- Les formats de date acceptés: 15/06/2026, 15-juin, 15/6/26' },
+      { 'Instructions': '- Vous pouvez avoir plusieurs feuilles par ville' }
+    ];
+    const instructionSheet = XLSX.utils.json_to_sheet(instructions);
+    instructionSheet['!cols'] = [{ wch: 70 }];
+    XLSX.utils.book_append_sheet(workbook, instructionSheet, 'Instructions');
+
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=template_historique_visites.xlsx');
+    res.send(buffer);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Télécharger le template pour l'import client
+exports.downloadTemplateClient = async (req, res, next) => {
+  try {
+    const workbook = XLSX.utils.book_new();
+    
+    // Données d'exemple
+    const exampleData = [
+      {
+        'Matricule': '1108702',
+        'Fonction': 'Technicien',
+        'Type Fonction': 'Production',
+        'Chantier': 'CASA - PROJET MARINA'
+      },
+      {
+        'Matricule': '1205843',
+        'Fonction': 'Ingénieur',
+        'Type Fonction': 'Études',
+        'Chantier': 'RABAT - TOUR ATLAS'
+      },
+      {
+        'Matricule': '1302156',
+        'Fonction': 'Chef de chantier',
+        'Type Fonction': 'Encadrement',
+        'Chantier': 'TANGER - PORT MED'
+      },
+      {
+        'Matricule': '1405789',
+        'Fonction': 'Ouvrier',
+        'Type Fonction': 'Production',
+        'Chantier': 'MARRAKECH - HOTEL ROYAL'
+      }
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(exampleData);
+    
+    // Ajuster les largeurs de colonnes
+    worksheet['!cols'] = [
+      { wch: 15 }, // Matricule
+      { wch: 20 }, // Fonction
+      { wch: 20 }, // Type Fonction
+      { wch: 35 }  // Chantier
+    ];
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Liste Salariés');
+
+    // Ajouter une feuille d'instructions
+    const instructions = [
+      { 'Instructions': 'TEMPLATE IMPORT FICHIER CLIENT' },
+      { 'Instructions': '' },
+      { 'Instructions': 'Colonnes requises:' },
+      { 'Instructions': '- Matricule: Numéro matricule du salarié (OBLIGATOIRE)' },
+      { 'Instructions': '- Fonction: Fonction/Poste du salarié' },
+      { 'Instructions': '- Type Fonction: Type ou catégorie de fonction' },
+      { 'Instructions': '- Chantier: Nom du chantier actuel' },
+      { 'Instructions': '' },
+      { 'Instructions': 'Fonctionnement:' },
+      { 'Instructions': '- Le système compare chaque matricule avec la base de données' },
+      { 'Instructions': '- Si la dernière visite date de plus de 12 mois → À PLANIFIER' },
+      { 'Instructions': '- Si la dernière visite date de moins de 12 mois → À JOUR' },
+      { 'Instructions': '- Si le matricule n\'existe pas dans la base → NOUVEAU (à planifier)' },
+      { 'Instructions': '' },
+      { 'Instructions': 'Note: Seule la colonne Matricule est obligatoire' }
+    ];
+    const instructionSheet = XLSX.utils.json_to_sheet(instructions);
+    instructionSheet['!cols'] = [{ wch: 70 }];
+    XLSX.utils.book_append_sheet(workbook, instructionSheet, 'Instructions');
+
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=template_fichier_client.xlsx');
+    res.send(buffer);
+  } catch (error) {
+    next(error);
+  }
+};

@@ -6,6 +6,8 @@ const upload = require('../middleware/upload.middleware');
 
 router.use(authenticate);
 
+router.get('/template/historique', importController.downloadTemplateHistorique);
+router.get('/template/client', importController.downloadTemplateClient);
 router.post('/historique', upload.single('file'), importController.importHistorique);
 router.post('/client', upload.single('file'), importController.importClient);
 router.get('/history', importController.getImportHistory);
