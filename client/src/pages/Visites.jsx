@@ -30,7 +30,8 @@ export default function Visites() {
   const [visites, setVisites] = useState([])
   const [loading, setLoading] = useState(true)
   const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0 })
-  const [filters, setFilters] = useState({ statut: '', dateDebut: '', dateFin: '', matricule: '' })
+  const [filters, setFilters] = useState({ statut: '', dateDebut: '', dateFin: '', matricule: '', chantier: '', ville: '' })
+  const [filterOptions, setFilterOptions] = useState({ villes: [], chantiers: [] })
   const [showModal, setShowModal] = useState(false)
   const [editingVisite, setEditingVisite] = useState(null)
   const [salaries, setSalaries] = useState([])
@@ -49,7 +50,17 @@ export default function Visites() {
   useEffect(() => {
     fetchVisites()
     fetchMedecins()
+    fetchFilterOptions()
   }, [pagination.page, filters])
+
+  const fetchFilterOptions = async () => {
+    try {
+      const response = await api.get('/visites/filters')
+      setFilterOptions(response.data.data)
+    } catch (error) {
+      console.error('Error fetching filter options:', error)
+    }
+  }
 
   const fetchVisites = async () => {
     setLoading(true)
@@ -59,6 +70,8 @@ export default function Visites() {
       if (filters.dateDebut) params.dateDebut = filters.dateDebut
       if (filters.dateFin) params.dateFin = filters.dateFin
       if (filters.matricule) params.matricule = filters.matricule
+      if (filters.chantier) params.chantier = filters.chantier
+      if (filters.ville) params.ville = filters.ville
 
       const response = await api.get('/visites', { params })
       setVisites(response.data.data)
@@ -183,7 +196,7 @@ export default function Visites() {
           <Filter className="w-5 h-5 text-gray-400" />
           <span className="font-medium text-gray-700">Filtres</span>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
           <div>
             <label className="label">Recherche matricule</label>
             <div className="relative">
@@ -212,6 +225,38 @@ export default function Visites() {
             </select>
           </div>
           <div>
+            <label className="label">Ville</label>
+            <select
+              value={filters.ville}
+              onChange={(e) => setFilters({ ...filters, ville: e.target.value })}
+              className="input"
+            >
+              <option value="">Toutes les villes</option>
+              {filterOptions.villes.map(v => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Chantier</label>
+            <input
+              type="text"
+              value={filters.chantier}
+              onChange={(e) => setFilters({ ...filters, chantier: e.target.value })}
+              onKeyDown={(e) => { if (e.key === 'Enter') fetchVisites() }}
+              className="input"
+              placeholder="Rechercher chantier..."
+              list="chantiers-list"
+            />
+            <datalist id="chantiers-list">
+              {filterOptions.chantiers.slice(0, 50).map(c => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
             <label className="label">Date début</label>
             <input
               type="date"
@@ -229,12 +274,12 @@ export default function Visites() {
               className="input"
             />
           </div>
-          <div className="flex items-end">
+          <div className="md:col-span-2 flex items-end">
             <button
-              onClick={() => setFilters({ statut: '', dateDebut: '', dateFin: '', matricule: '' })}
-              className="btn-secondary w-full"
+              onClick={() => setFilters({ statut: '', dateDebut: '', dateFin: '', matricule: '', chantier: '', ville: '' })}
+              className="btn-secondary"
             >
-              Réinitialiser
+              Réinitialiser les filtres
             </button>
           </div>
         </div>

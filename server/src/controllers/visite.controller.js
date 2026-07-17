@@ -2,7 +2,7 @@ const prisma = require('../lib/prisma');
 
 exports.getAll = async (req, res, next) => {
   try {
-    const { page = 1, limit = 50, statut, dateDebut, dateFin, matricule } = req.query;
+    const { page = 1, limit = 50, statut, dateDebut, dateFin, matricule, chantier, ville } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const where = {};
@@ -18,6 +18,16 @@ exports.getAll = async (req, res, next) => {
       where.salarie = {
         matricule: { contains: matricule }
       };
+    }
+    
+    // Filtre par chantier
+    if (chantier) {
+      where.chantier = { contains: chantier };
+    }
+    
+    // Filtre par ville
+    if (ville) {
+      where.ville = ville;
     }
 
     const [visites, total] = await Promise.all([
@@ -209,6 +219,33 @@ exports.delete = async (req, res, next) => {
     res.json({
       success: true,
       message: 'Visite supprimée'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getFilters = async (req, res, next) => {
+  try {
+    const [villes, chantiers] = await Promise.all([
+      prisma.visite.groupBy({
+        by: ['ville'],
+        where: { ville: { not: null } },
+        orderBy: { ville: 'asc' }
+      }),
+      prisma.visite.groupBy({
+        by: ['chantier'],
+        where: { chantier: { not: null } },
+        orderBy: { chantier: 'asc' }
+      })
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        villes: villes.map(v => v.ville).filter(Boolean),
+        chantiers: chantiers.map(c => c.chantier).filter(Boolean)
+      }
     });
   } catch (error) {
     next(error);

@@ -6,6 +6,7 @@ const { authenticate } = require('../middleware/auth.middleware');
 router.use(authenticate);
 
 router.get('/', visiteController.getAll);
+router.get('/filters', visiteController.getFilters);
 router.get('/salarie/:salarieId', visiteController.getBySalarie);
 router.get('/medecin/:medecinId', visiteController.getByMedecin);
 router.get('/:id', visiteController.getById);
