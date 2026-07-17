@@ -337,8 +337,8 @@ exports.getHonorairesStats = async (req, res, next) => {
   }
 };
 
-// Rentabilité par médecin (CA = 230 DH par visite effectuée)
-const TARIF_VISITE_CA = 230; // DH par visite (chiffre d'affaires)
+// Rentabilité par médecin (CA = 230 DH par collaborateur examiné)
+const TARIF_VISITE_CA = 230; // DH par examen (chiffre d'affaires)
 
 exports.getRentabiliteParMedecin = async (req, res, next) => {
   try {
@@ -361,46 +361,53 @@ exports.getRentabiliteParMedecin = async (req, res, next) => {
       where: { actif: true }
     });
 
-    // Compter les visites par médecin
-    const visitesParMedecin = await prisma.visite.groupBy({
-      by: ['medecinId'],
+    // Récupérer toutes les visites (pour compter examens + déplacements forfait)
+    const visites = await prisma.visite.findMany({
       where: whereVisite,
-      _count: { id: true }
-    });
-
-    // Compter les visites groupées par chantier par médecin (pour tarif PAR_VISITE)
-    const visitesParChantierMedecin = await prisma.visite.groupBy({
-      by: ['medecinId', 'chantier'],
-      where: whereVisite,
-      _count: { id: true }
-    });
-
-    // Créer les maps pour un accès rapide
-    const visitesMap = new Map(visitesParMedecin.map(v => [v.medecinId, v._count.id]));
-    
-    // Map pour compter le nombre de chantiers distincts par médecin
-    const chantiersParMedecin = new Map();
-    visitesParChantierMedecin.forEach(v => {
-      if (!chantiersParMedecin.has(v.medecinId)) {
-        chantiersParMedecin.set(v.medecinId, 0);
+      select: {
+        medecinId: true,
+        chantier: true,
+        dateVisite: true
       }
-      chantiersParMedecin.set(v.medecinId, chantiersParMedecin.get(v.medecinId) + 1);
     });
+
+    // Agréger par médecin
+    const statsParMedecin = new Map();
+    
+    for (const v of visites) {
+      if (!statsParMedecin.has(v.medecinId)) {
+        statsParMedecin.set(v.medecinId, {
+          nbExamens: 0,
+          // Clé unique: chantier + date = 1 déplacement forfait
+          // (plusieurs personnes le même jour sur le même chantier = 1 seul forfait)
+          deplacements: new Set()
+        });
+      }
+      const stats = statsParMedecin.get(v.medecinId);
+      stats.nbExamens++;
+      
+      const jour = v.dateVisite.toISOString().slice(0, 10);
+      const cleDeplacement = `${v.chantier || 'SANS_CHANTIER'}|${jour}`;
+      stats.deplacements.add(cleDeplacement);
+    }
 
     // Calculer la rentabilité pour chaque médecin
     const rentabilite = medecins.map(m => {
-      const nbVisites = visitesMap.get(m.id) || 0;
-      const nbChantiers = chantiersParMedecin.get(m.id) || 0;
-      const chiffreAffaire = nbVisites * TARIF_VISITE_CA;
+      const stats = statsParMedecin.get(m.id) || { nbExamens: 0, deplacements: new Set() };
+      const nbExamens = stats.nbExamens;
+      const nbDeplacements = stats.deplacements.size;
+      const chiffreAffaire = nbExamens * TARIF_VISITE_CA;
       
-      // Calculer les honoraires selon le type de tarif du médecin
+      // Honoraires selon le type de tarif
+      // PAR_VISITE: forfait fixe par DÉPLACEMENT (chantier+date), pas par personne
+      // PAR_EXAMEN: tarif × nombre de collaborateurs examinés
       let honoraires = 0;
       if (m.typeTarif === 'PAR_VISITE' && m.tarifVisite) {
-        // Payé par visite au chantier (nombre de chantiers visités)
-        honoraires = nbChantiers * m.tarifVisite;
+        honoraires = nbDeplacements * m.tarifVisite;
       } else if (m.typeTarif === 'PAR_EXAMEN' && m.tarifExamen) {
-        // Payé par collaborateur examiné (nombre de visites)
-        honoraires = nbVisites * m.tarifExamen;
+        honoraires = nbExamens * m.tarifExamen;
+      } else if (m.typeTarif === 'MIXTE') {
+        honoraires = (nbDeplacements * (m.tarifVisite || 0)) + (nbExamens * (m.tarifExamen || 0));
       }
       
       const marge = chiffreAffaire - honoraires;
@@ -411,18 +418,19 @@ exports.getRentabiliteParMedecin = async (req, res, next) => {
         nom: m.nom,
         prenom: m.prenom,
         typeTarif: m.typeTarif || 'Non défini',
-        tarifMedecin: m.typeTarif === 'PAR_VISITE' ? m.tarifVisite : m.tarifExamen,
-        nbVisites,
-        nbChantiers,
+        tarifMedecin: m.typeTarif === 'PAR_EXAMEN' ? m.tarifExamen : m.tarifVisite,
+        nbVisites: nbExamens,
+        nbExamens,
+        nbDeplacements,
         chiffreAffaire,
         honoraires,
         marge,
         tauxMarge: parseFloat(tauxMarge)
       };
-    }).filter(m => m.nbVisites > 0).sort((a, b) => b.marge - a.marge);
+    }).filter(m => m.nbExamens > 0).sort((a, b) => b.marge - a.marge);
 
     // Totaux
-    const totalVisites = rentabilite.reduce((sum, m) => sum + m.nbVisites, 0);
+    const totalExamens = rentabilite.reduce((sum, m) => sum + m.nbExamens, 0);
     const totalCA = rentabilite.reduce((sum, m) => sum + m.chiffreAffaire, 0);
     const totalHonoraires = rentabilite.reduce((sum, m) => sum + m.honoraires, 0);
     const totalMarge = totalCA - totalHonoraires;
@@ -433,7 +441,7 @@ exports.getRentabiliteParMedecin = async (req, res, next) => {
       data: {
         tarifVisite: TARIF_VISITE_CA,
         totaux: {
-          nbVisites: totalVisites,
+          nbVisites: totalExamens,
           chiffreAffaire: totalCA,
           honoraires: totalHonoraires,
           marge: totalMarge,

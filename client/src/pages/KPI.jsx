@@ -329,7 +329,7 @@ export default function KPI() {
           <div className="card bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200">
             <h3 className="font-semibold text-gray-900 mb-4 flex items-center space-x-2">
               <TrendingUp className="w-5 h-5 text-indigo-600" />
-              <span>Rentabilité globale (230 DH / visite effectuée)</span>
+              <span>Rentabilité globale (230 DH / collaborateur examiné)</span>
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-white rounded-xl p-4 shadow-sm">
@@ -368,8 +368,8 @@ export default function KPI() {
                   <tr>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Médecin</th>
                     <th className="text-center py-3 px-4 text-sm font-medium text-gray-500">Type tarif</th>
-                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Visites</th>
-                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">CA (230 DH/visite)</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Examens</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">CA (230 DH/examen)</th>
                     <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Honoraires</th>
                     <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Marge</th>
                     <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Taux</th>
@@ -387,20 +387,26 @@ export default function KPI() {
                         <td className="py-3 px-4 text-center">
                           {m.typeTarif === 'PAR_VISITE' ? (
                             <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">
-                              {formatMontant(m.tarifMedecin)}/chantier
+                              Forfait {formatMontant(m.tarifMedecin)}/déplacement
                             </span>
                           ) : m.typeTarif === 'PAR_EXAMEN' ? (
                             <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs">
                               {formatMontant(m.tarifMedecin)}/examen
+                            </span>
+                          ) : m.typeTarif === 'MIXTE' ? (
+                            <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded text-xs">
+                              Mixte
                             </span>
                           ) : (
                             <span className="px-2 py-1 bg-gray-100 text-gray-500 rounded text-xs">Non défini</span>
                           )}
                         </td>
                         <td className="py-3 px-4 text-right">
-                          {m.nbVisites}
-                          {m.typeTarif === 'PAR_VISITE' && m.nbChantiers > 0 && (
-                            <span className="block text-xs text-gray-400">{m.nbChantiers} chantiers</span>
+                          {m.nbExamens || m.nbVisites}
+                          {m.typeTarif === 'PAR_VISITE' && m.nbDeplacements > 0 && (
+                            <span className="block text-xs text-gray-400">
+                              {m.nbDeplacements} déplacement{m.nbDeplacements > 1 ? 's' : ''}
+                            </span>
                           )}
                         </td>
                         <td className="py-3 px-4 text-right text-blue-600 font-medium">
