@@ -11,5 +11,6 @@ router.get('/visites-par-ville', kpiController.getVisitesParVille);
 router.get('/salaries-stats', kpiController.getSalariesStats);
 router.get('/medecins-performance', kpiController.getMedecinsPerformance);
 router.get('/honoraires-stats', kpiController.getHonorairesStats);
+router.get('/rentabilite-medecins', kpiController.getRentabiliteParMedecin);
 
 module.exports = router;

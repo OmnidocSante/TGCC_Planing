@@ -336,3 +336,95 @@ exports.getHonorairesStats = async (req, res, next) => {
     next(error);
   }
 };
+
+// Rentabilité par médecin (CA = 230 DH par visite effectuée)
+const TARIF_VISITE = 230; // DH par visite
+
+exports.getRentabiliteParMedecin = async (req, res, next) => {
+  try {
+    const { dateDebut, dateFin } = req.query;
+
+    const whereVisite = { statut: 'EFFECTUEE', medecinId: { not: null } };
+    const whereHonoraire = {};
+    
+    if (dateDebut || dateFin) {
+      whereVisite.dateVisite = {};
+      whereHonoraire.dateVisite = {};
+      if (dateDebut) {
+        whereVisite.dateVisite.gte = new Date(dateDebut);
+        whereHonoraire.dateVisite.gte = new Date(dateDebut);
+      }
+      if (dateFin) {
+        whereVisite.dateVisite.lte = new Date(dateFin);
+        whereHonoraire.dateVisite.lte = new Date(dateFin);
+      }
+    }
+
+    // Récupérer les médecins actifs
+    const medecins = await prisma.medecin.findMany({
+      where: { actif: true }
+    });
+
+    // Compter les visites par médecin
+    const visitesParMedecin = await prisma.visite.groupBy({
+      by: ['medecinId'],
+      where: whereVisite,
+      _count: { id: true }
+    });
+
+    // Calculer les honoraires par médecin
+    const honorairesParMedecin = await prisma.honoraire.groupBy({
+      by: ['medecinId'],
+      where: whereHonoraire,
+      _sum: { montantTotal: true }
+    });
+
+    // Créer les maps pour un accès rapide
+    const visitesMap = new Map(visitesParMedecin.map(v => [v.medecinId, v._count.id]));
+    const honorairesMap = new Map(honorairesParMedecin.map(h => [h.medecinId, h._sum.montantTotal || 0]));
+
+    // Calculer la rentabilité pour chaque médecin
+    const rentabilite = medecins.map(m => {
+      const nbVisites = visitesMap.get(m.id) || 0;
+      const chiffreAffaire = nbVisites * TARIF_VISITE;
+      const honoraires = honorairesMap.get(m.id) || 0;
+      const marge = chiffreAffaire - honoraires;
+      const tauxMarge = chiffreAffaire > 0 ? ((marge / chiffreAffaire) * 100).toFixed(1) : 0;
+
+      return {
+        id: m.id,
+        nom: m.nom,
+        prenom: m.prenom,
+        nbVisites,
+        chiffreAffaire,
+        honoraires,
+        marge,
+        tauxMarge: parseFloat(tauxMarge)
+      };
+    }).filter(m => m.nbVisites > 0).sort((a, b) => b.marge - a.marge);
+
+    // Totaux
+    const totalVisites = rentabilite.reduce((sum, m) => sum + m.nbVisites, 0);
+    const totalCA = rentabilite.reduce((sum, m) => sum + m.chiffreAffaire, 0);
+    const totalHonoraires = rentabilite.reduce((sum, m) => sum + m.honoraires, 0);
+    const totalMarge = totalCA - totalHonoraires;
+    const tauxMargeGlobal = totalCA > 0 ? ((totalMarge / totalCA) * 100).toFixed(1) : 0;
+
+    res.json({
+      success: true,
+      data: {
+        tarifVisite: TARIF_VISITE,
+        totaux: {
+          nbVisites: totalVisites,
+          chiffreAffaire: totalCA,
+          honoraires: totalHonoraires,
+          marge: totalMarge,
+          tauxMarge: parseFloat(tauxMargeGlobal)
+        },
+        parMedecin: rentabilite
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};

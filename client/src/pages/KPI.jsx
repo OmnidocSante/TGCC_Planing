@@ -65,6 +65,7 @@ export default function KPI() {
   const [medecinPerformance, setMedecinPerformance] = useState([])
   const [chantierStats, setChantierStats] = useState([])
   const [honorairesStats, setHonorairesStats] = useState({})
+  const [rentabilite, setRentabilite] = useState({ totaux: {}, parMedecin: [] })
   const [tendance, setTendance] = useState([])
 
   useEffect(() => {
@@ -113,14 +114,16 @@ export default function KPI() {
         visitesParVilleRes,
         salariesRes,
         medecinsRes,
-        honorairesRes
+        honorairesRes,
+        rentabiliteRes
       ] = await Promise.all([
         api.get('/kpi/stats', { params }),
         api.get('/kpi/visites-par-mois', { params }),
         api.get('/kpi/visites-par-ville', { params }),
         api.get('/kpi/salaries-stats', { params }),
         api.get('/kpi/medecins-performance', { params }),
-        api.get('/kpi/honoraires-stats', { params })
+        api.get('/kpi/honoraires-stats', { params }),
+        api.get('/kpi/rentabilite-medecins', { params })
       ])
 
       setStats(statsRes.data.data)
@@ -131,6 +134,7 @@ export default function KPI() {
       setVilles(salariesRes.data.villes || [])
       setMedecinPerformance(medecinsRes.data.data)
       setHonorairesStats(honorairesRes.data.data)
+      setRentabilite(rentabiliteRes.data.data)
       
       // Calculer la tendance
       if (visitesParMoisRes.data.data.length > 1) {
@@ -319,6 +323,105 @@ export default function KPI() {
               icon={DollarSign}
               color="from-emerald-500 to-emerald-600 text-white"
             />
+          </div>
+
+          {/* Rentabilité - CA, Honoraires, Marge */}
+          <div className="card bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200">
+            <h3 className="font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+              <TrendingUp className="w-5 h-5 text-indigo-600" />
+              <span>Rentabilité globale (230 DH / visite effectuée)</span>
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-xl p-4 shadow-sm">
+                <p className="text-sm text-gray-500">Visites effectuées</p>
+                <p className="text-2xl font-bold text-gray-900">{rentabilite.totaux.nbVisites?.toLocaleString() || 0}</p>
+              </div>
+              <div className="bg-white rounded-xl p-4 shadow-sm">
+                <p className="text-sm text-gray-500">Chiffre d'affaires</p>
+                <p className="text-2xl font-bold text-blue-600">{formatMontant(rentabilite.totaux.chiffreAffaire || 0)}</p>
+              </div>
+              <div className="bg-white rounded-xl p-4 shadow-sm">
+                <p className="text-sm text-gray-500">Charges (Honoraires)</p>
+                <p className="text-2xl font-bold text-red-600">{formatMontant(rentabilite.totaux.honoraires || 0)}</p>
+              </div>
+              <div className="bg-white rounded-xl p-4 shadow-sm">
+                <p className="text-sm text-gray-500">Marge nette</p>
+                <p className={`text-2xl font-bold ${(rentabilite.totaux.marge || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatMontant(rentabilite.totaux.marge || 0)}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Taux de marge: {rentabilite.totaux.tauxMarge || 0}%
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Tableau rentabilité par médecin */}
+          <div className="card">
+            <h3 className="font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+              <DollarSign className="w-5 h-5 text-primary-600" />
+              <span>Rentabilité par médecin</span>
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Médecin</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Visites</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">CA (230 DH/visite)</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Honoraires</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Marge</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Taux</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rentabilite.parMedecin.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="py-8 text-center text-gray-500">Aucune donnée</td>
+                    </tr>
+                  ) : (
+                    rentabilite.parMedecin.map((m, idx) => (
+                      <tr key={idx} className="border-t hover:bg-gray-50">
+                        <td className="py-3 px-4 font-medium">Dr. {m.nom} {m.prenom || ''}</td>
+                        <td className="py-3 px-4 text-right">{m.nbVisites}</td>
+                        <td className="py-3 px-4 text-right text-blue-600 font-medium">
+                          {formatMontant(m.chiffreAffaire)}
+                        </td>
+                        <td className="py-3 px-4 text-right text-red-600">
+                          {formatMontant(m.honoraires)}
+                        </td>
+                        <td className={`py-3 px-4 text-right font-bold ${m.marge >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatMontant(m.marge)}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            m.tauxMarge >= 50 ? 'bg-green-100 text-green-700' :
+                            m.tauxMarge >= 20 ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-red-100 text-red-700'
+                          }`}>
+                            {m.tauxMarge}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                {rentabilite.parMedecin.length > 0 && (
+                  <tfoot className="bg-gray-100 font-semibold">
+                    <tr>
+                      <td className="py-3 px-4">TOTAL</td>
+                      <td className="py-3 px-4 text-right">{rentabilite.totaux.nbVisites}</td>
+                      <td className="py-3 px-4 text-right text-blue-600">{formatMontant(rentabilite.totaux.chiffreAffaire)}</td>
+                      <td className="py-3 px-4 text-right text-red-600">{formatMontant(rentabilite.totaux.honoraires)}</td>
+                      <td className={`py-3 px-4 text-right ${rentabilite.totaux.marge >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatMontant(rentabilite.totaux.marge)}
+                      </td>
+                      <td className="py-3 px-4 text-right">{rentabilite.totaux.tauxMarge}%</td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
           </div>
 
           {/* Graphiques ligne 1 */}
