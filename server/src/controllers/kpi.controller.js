@@ -338,29 +338,25 @@ exports.getHonorairesStats = async (req, res, next) => {
 };
 
 // Rentabilité par médecin (CA = 230 DH par visite effectuée)
-const TARIF_VISITE = 230; // DH par visite
+const TARIF_VISITE_CA = 230; // DH par visite (chiffre d'affaires)
 
 exports.getRentabiliteParMedecin = async (req, res, next) => {
   try {
     const { dateDebut, dateFin } = req.query;
 
     const whereVisite = { statut: 'EFFECTUEE', medecinId: { not: null } };
-    const whereHonoraire = {};
     
     if (dateDebut || dateFin) {
       whereVisite.dateVisite = {};
-      whereHonoraire.dateVisite = {};
       if (dateDebut) {
         whereVisite.dateVisite.gte = new Date(dateDebut);
-        whereHonoraire.dateVisite.gte = new Date(dateDebut);
       }
       if (dateFin) {
         whereVisite.dateVisite.lte = new Date(dateFin);
-        whereHonoraire.dateVisite.lte = new Date(dateFin);
       }
     }
 
-    // Récupérer les médecins actifs
+    // Récupérer les médecins actifs avec leurs tarifs
     const medecins = await prisma.medecin.findMany({
       where: { actif: true }
     });
@@ -372,22 +368,41 @@ exports.getRentabiliteParMedecin = async (req, res, next) => {
       _count: { id: true }
     });
 
-    // Calculer les honoraires par médecin
-    const honorairesParMedecin = await prisma.honoraire.groupBy({
-      by: ['medecinId'],
-      where: whereHonoraire,
-      _sum: { montantTotal: true }
+    // Compter les visites groupées par chantier par médecin (pour tarif PAR_VISITE)
+    const visitesParChantierMedecin = await prisma.visite.groupBy({
+      by: ['medecinId', 'chantier'],
+      where: whereVisite,
+      _count: { id: true }
     });
 
     // Créer les maps pour un accès rapide
     const visitesMap = new Map(visitesParMedecin.map(v => [v.medecinId, v._count.id]));
-    const honorairesMap = new Map(honorairesParMedecin.map(h => [h.medecinId, h._sum.montantTotal || 0]));
+    
+    // Map pour compter le nombre de chantiers distincts par médecin
+    const chantiersParMedecin = new Map();
+    visitesParChantierMedecin.forEach(v => {
+      if (!chantiersParMedecin.has(v.medecinId)) {
+        chantiersParMedecin.set(v.medecinId, 0);
+      }
+      chantiersParMedecin.set(v.medecinId, chantiersParMedecin.get(v.medecinId) + 1);
+    });
 
     // Calculer la rentabilité pour chaque médecin
     const rentabilite = medecins.map(m => {
       const nbVisites = visitesMap.get(m.id) || 0;
-      const chiffreAffaire = nbVisites * TARIF_VISITE;
-      const honoraires = honorairesMap.get(m.id) || 0;
+      const nbChantiers = chantiersParMedecin.get(m.id) || 0;
+      const chiffreAffaire = nbVisites * TARIF_VISITE_CA;
+      
+      // Calculer les honoraires selon le type de tarif du médecin
+      let honoraires = 0;
+      if (m.typeTarif === 'PAR_VISITE' && m.tarifVisite) {
+        // Payé par visite au chantier (nombre de chantiers visités)
+        honoraires = nbChantiers * m.tarifVisite;
+      } else if (m.typeTarif === 'PAR_EXAMEN' && m.tarifExamen) {
+        // Payé par collaborateur examiné (nombre de visites)
+        honoraires = nbVisites * m.tarifExamen;
+      }
+      
       const marge = chiffreAffaire - honoraires;
       const tauxMarge = chiffreAffaire > 0 ? ((marge / chiffreAffaire) * 100).toFixed(1) : 0;
 
@@ -395,7 +410,10 @@ exports.getRentabiliteParMedecin = async (req, res, next) => {
         id: m.id,
         nom: m.nom,
         prenom: m.prenom,
+        typeTarif: m.typeTarif || 'Non défini',
+        tarifMedecin: m.typeTarif === 'PAR_VISITE' ? m.tarifVisite : m.tarifExamen,
         nbVisites,
+        nbChantiers,
         chiffreAffaire,
         honoraires,
         marge,
@@ -413,7 +431,7 @@ exports.getRentabiliteParMedecin = async (req, res, next) => {
     res.json({
       success: true,
       data: {
-        tarifVisite: TARIF_VISITE,
+        tarifVisite: TARIF_VISITE_CA,
         totaux: {
           nbVisites: totalVisites,
           chiffreAffaire: totalCA,

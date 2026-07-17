@@ -367,6 +367,7 @@ export default function KPI() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Médecin</th>
+                    <th className="text-center py-3 px-4 text-sm font-medium text-gray-500">Type tarif</th>
                     <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Visites</th>
                     <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">CA (230 DH/visite)</th>
                     <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Honoraires</th>
@@ -377,13 +378,31 @@ export default function KPI() {
                 <tbody>
                   {rentabilite.parMedecin.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="py-8 text-center text-gray-500">Aucune donnée</td>
+                      <td colSpan="7" className="py-8 text-center text-gray-500">Aucune donnée</td>
                     </tr>
                   ) : (
                     rentabilite.parMedecin.map((m, idx) => (
                       <tr key={idx} className="border-t hover:bg-gray-50">
                         <td className="py-3 px-4 font-medium">Dr. {m.nom} {m.prenom || ''}</td>
-                        <td className="py-3 px-4 text-right">{m.nbVisites}</td>
+                        <td className="py-3 px-4 text-center">
+                          {m.typeTarif === 'PAR_VISITE' ? (
+                            <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">
+                              {formatMontant(m.tarifMedecin)}/chantier
+                            </span>
+                          ) : m.typeTarif === 'PAR_EXAMEN' ? (
+                            <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs">
+                              {formatMontant(m.tarifMedecin)}/examen
+                            </span>
+                          ) : (
+                            <span className="px-2 py-1 bg-gray-100 text-gray-500 rounded text-xs">Non défini</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          {m.nbVisites}
+                          {m.typeTarif === 'PAR_VISITE' && m.nbChantiers > 0 && (
+                            <span className="block text-xs text-gray-400">{m.nbChantiers} chantiers</span>
+                          )}
+                        </td>
                         <td className="py-3 px-4 text-right text-blue-600 font-medium">
                           {formatMontant(m.chiffreAffaire)}
                         </td>
@@ -409,7 +428,7 @@ export default function KPI() {
                 {rentabilite.parMedecin.length > 0 && (
                   <tfoot className="bg-gray-100 font-semibold">
                     <tr>
-                      <td className="py-3 px-4">TOTAL</td>
+                      <td className="py-3 px-4" colSpan="2">TOTAL</td>
                       <td className="py-3 px-4 text-right">{rentabilite.totaux.nbVisites}</td>
                       <td className="py-3 px-4 text-right text-blue-600">{formatMontant(rentabilite.totaux.chiffreAffaire)}</td>
                       <td className="py-3 px-4 text-right text-red-600">{formatMontant(rentabilite.totaux.honoraires)}</td>
